@@ -1,0 +1,222 @@
+package net.v_black_cat.vcatvisualeffects.visual.client;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.v_black_cat.vcatvisualeffects.VCatVisualEffectsMod;
+import net.v_black_cat.vcatvisualeffects.compat.ShaderModCompat;
+import net.v_black_cat.vcatvisualeffects.visual.ActiveEntityVisualEffect;
+import net.v_black_cat.vcatvisualeffects.visual.EntityVisualEffectSystem;
+import net.v_black_cat.vcatvisualeffects.visual.EntityVisualEffects;
+import net.v_black_cat.vcatvisualeffects.visual.EntityVisualEffectType;
+import net.v_black_cat.vcatvisualeffects.visual.VCatVisualEffects;
+
+@Mod.EventBusSubscriber(modid = VCatVisualEffectsMod.MODID, value = Dist.CLIENT)
+public final class EntityVisualEffectRenderDispatcher {
+
+    private static boolean registeredDefaults;
+
+
+    private EntityVisualEffectRenderDispatcher() {
+    }
+
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onRenderLevelStage(RenderLevelStageEvent event) {
+
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+
+            RenderLevelStageEvent cachedEvent =
+                    LateShaderPackRenderContext.consumeAfterParticles();
+
+
+            if (cachedEvent != null
+                    && ShaderModCompat.isShaderPackInUse()) {
+
+                Minecraft.getInstance()
+                        .getMainRenderTarget()
+                        .bindWrite(false);
+
+                render(cachedEvent);
+            }
+
+
+            return;
+        }
+
+
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
+            return;
+        }
+
+
+        if (ShaderModCompat.isShaderPackInUse()) {
+
+            LateShaderPackRenderContext.captureAfterParticles(event);
+
+            return;
+        }
+
+
+        render(event);
+    }
+
+
+
+    private static void render(RenderLevelStageEvent event) {
+
+        Minecraft minecraft = Minecraft.getInstance();
+
+        ClientLevel level = minecraft.level;
+
+
+        if (level == null || minecraft.player == null) {
+            return;
+        }
+
+
+        ensureDefaultsRegistered();
+
+
+        for (Entity entity : level.entitiesForRendering()) {
+
+
+            if (entity.isRemoved()) {
+                continue;
+            }
+
+
+            LazyOptional<EntityVisualEffects> optional =
+                    entity.getCapability(
+                            EntityVisualEffectSystem.ENTITY_VISUAL_EFFECTS
+                    );
+
+
+            EntityVisualEffects effects =
+                    optional.resolve().orElse(null);
+
+
+            if (effects == null || effects.isEmpty()) {
+                continue;
+            }
+
+
+            renderEffects(
+                    minecraft,
+                    event,
+                    entity,
+                    effects
+            );
+        }
+    }
+
+
+
+    private static void renderEffects(
+            Minecraft minecraft,
+            RenderLevelStageEvent event,
+            Entity entity,
+            EntityVisualEffects effects
+    ) {
+
+
+        for (ActiveEntityVisualEffect effect : effects.effects()) {
+
+
+            EntityVisualEffectType type =
+                    VCatVisualEffects.get(effect.id());
+
+
+            EntityVisualEffectRenderer renderer =
+                    EntityVisualEffectRenderers.get(effect.id());
+
+
+            if (type == null || renderer == null) {
+                continue;
+            }
+
+
+            if (!shouldRender(
+                    minecraft,
+                    event,
+                    entity,
+                    type
+            )) {
+                continue;
+            }
+
+
+            renderer.render(
+                    event,
+                    entity,
+                    effect
+            );
+        }
+    }
+
+
+
+    private static void ensureDefaultsRegistered() {
+
+        if (!registeredDefaults) {
+
+            EntityVisualEffectRenderers.registerDefaults();
+
+            registeredDefaults = true;
+        }
+    }
+
+
+
+    private static boolean shouldRender(
+            Minecraft minecraft,
+            RenderLevelStageEvent event,
+            Entity entity,
+            EntityVisualEffectType type
+    ) {
+
+
+        if (entity.isInvisible()
+                && !type.shouldRenderInvisibleEntity()) {
+
+            return false;
+        }
+
+
+        if (type.hasRenderDistanceLimit()) {
+
+
+            double distance =
+                    entity.distanceToSqr(
+                            event.getCamera().getPosition()
+                    );
+
+
+            double limit =
+                    type.renderDistance()
+                            * type.renderDistance();
+
+
+            if (distance > limit) {
+                return false;
+            }
+        }
+
+
+        LocalPlayer player = minecraft.player;
+
+
+        return entity != player
+                || type.renderInFirstPerson()
+                || !minecraft.options.getCameraType().isFirstPerson()
+                || !(entity instanceof Player);
+    }
+}

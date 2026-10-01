@@ -1,0 +1,11 @@
+{
+  "compatibilityLevel": "JAVA_17",
+  "minVersion": "0.8.5",
+  "package": "net.v_black_cat.vcatvisualeffects.mixin",
+  "refmap": "vcat_visual_effects.refmap.json",
+  "mixins": [
+    "EntityVisualEffectMixin"
+  ],
+  "client": [],
+  "server": []
+}

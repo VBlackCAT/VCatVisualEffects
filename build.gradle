@@ -1,0 +1,169 @@
+plugins {
+    id 'idea'
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.115'
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+legacyForge {
+    // Specify the version of MinecraftForge to use.
+    version = project.minecraft_version + '-' + project.forge_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    // This line is optional. Access Transformers are automatically detected
+    accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
+
+    // Default run configurations.
+    runs {
+        client {
+            client()
+
+            programArguments.addAll("--username", "wu1wu2")
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        server {
+            server()
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            systemProperty 'forge.logging.console.level', 'debug'
+            //mixin
+            systemProperty 'mixin.verbose', 'true'
+            systemProperty 'mixin.export', 'true'
+            systemProperty 'mixin.dumpTargetOnFailure', 'true'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    maven { url 'https://maven.blamejared.com' }
+    maven {
+        name = "Jared's maven"
+        url = "https://maven.blamejared.com/"
+    }
+    // Aliyun mirror: force net.neoforged build tools such as AutoRenamingTool to resolve here.
+    exclusiveContent {
+        forRepository {
+            maven { url "https://maven.aliyun.com/repository/public" }
+        }
+        filter {
+            includeModule "net.neoforged", "AutoRenamingTool"
+        }
+    }
+    mavenCentral()
+}
+
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "mixins.${mod_id}.json"
+}
+
+dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+}
+
+jar {
+    manifest.attributes([
+            "MixinConfigs": "mixins.${mod_id}.json"
+    ])
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.compilerArgs += [
+            // 配置注解处理器输出的 refmap 文件路径
+            "-AoutRefMapFile=${buildDir}/resources/main/${mod_id}.refmap.json",
+    ]
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version        : minecraft_version,
+            minecraft_version_range  : minecraft_version_range,
+            forge_version            : forge_version,
+            forge_version_range      : forge_version_range,
+            loader_version_range     : loader_version_range,
+            mod_id                   : mod_id,
+            mod_name                 : mod_name,
+            mod_license              : mod_license,
+            mod_version              : mod_version,
+            mod_authors              : mod_authors,
+            mod_description          : mod_description
+    ]
+    inputs.properties replaceProperties
+    filteringCharset = 'UTF-8'
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+// Include the output of "generateModMetadata" as an input directory for the build
+sourceSets.main.resources.srcDir generateModMetadata
+legacyForge.ideSyncTask generateModMetadata
+
+tasks.named('processResources', ProcessResources).configure {
+    // The mods.toml template ships the Chinese display name, so both read and write must be UTF-8.
+    filteringCharset = 'UTF-8'
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/mcmodsrepo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+kotlin {
+    jvmToolchain(17)
+}
