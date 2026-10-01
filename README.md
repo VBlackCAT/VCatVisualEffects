@@ -278,11 +278,16 @@ public interface EntityVisualEffectRenderer {
 
 ---
 
-## 六、屏幕空间（领域类）特效
+## 六、屏幕空间特效
 
-内置的领域效果（`cosmic_domain`、`lunar_domain`、`blueprint_domain`、`thunder_domain`、
-`mirror_domain`、`clockwork_domain`、`sand_domain`、`flora_domain`）不是世界空间几何体，
-而是走一次全屏的深度重建后处理：`assets/vcat_visual_effects/shaders/program/entity_depth_reconstruct.*`。
+除了世界空间几何体，本模组还有一条全屏的**深度重建后处理**链：
+`assets/vcat_visual_effects/shaders/program/entity_depth_reconstruct.*`。
+当前 41 个内置特效里有 **25 个**走这条链 —— 8 个通用效果（`screen_space_shockwave`、
+`depth_occluded_halo`、`contact_edge_glow`、`outline_scan`、`volumetric_light_column`、
+`depth_refraction_heatwave`、`depth_refraction_pressure`、`black_cat_head_fog_field`）、
+8 个领域展开（`cosmic_domain`、`lunar_domain`、`blueprint_domain`、`thunder_domain`、
+`mirror_domain`、`clockwork_domain`、`sand_domain`、`flora_domain`）和 9 个领域组件
+（`malevolent_shrine_*`）。
 
 这条链的调度点是写死的（效果 id → 内部 mode 编号的映射在
 `visual/client/ScreenSpaceDepthEffectPostProcessor` 里），**目前没有对外的注册入口**，
@@ -357,22 +362,42 @@ public interface EntityVisualEffectRenderer {
 
 ---
 
-## 九、内置特效清单（41 个）
+## 九、内置特效清单（当前 41 个）
 
-**世界空间（24）**
-`orbit_sphere`、`helix_trail`、`depth_occluded_halo`、`contact_edge_glow`、`soft_trail`、
-`screen_space_shockwave`、`depth_refraction_heatwave`、`volumetric_light_column`、`outline_scan`、
-`block_crack_light`、`red_eye_flash`、`tilted_halo`、`doom_corona`、`abyssal_rift_eye`、
-`holy_judgement_halo`、`astral_crown`、`blood_moon_backwheel`、`causal_chains`、
-`inverted_cross_mark`、`depth_refraction_pressure`、`volumetric_flame`、`phantom_rift_shards`、
-`supreme_chaos_cosmos`、`black_cat_head_fog_field`
+划分依据是**渲染路径**，不是名字：
 
-**屏幕空间领域（17）**
-`malevolent_shrine_domain`、`malevolent_shrine_target_glow`、`malevolent_shrine_slash`、
-`malevolent_shrine_fire`、`malevolent_shrine_fire_legacy`、`malevolent_shrine_black_domain`、
-`malevolent_shrine_black_mist`、`malevolent_shrine_void`、`malevolent_shrine_starfield`、
+- **世界空间**：在 `EntityVisualEffectRenderers` 里注册了渲染器，用各自的 core shader 画几何体；
+- **屏幕空间**：由 `ScreenSpaceDepthEffectPostProcessor` 的深度重建后处理链统一绘制。
+
+> 注意像 `screen_space_shockwave`、`outline_scan`、`depth_occluded_halo` 这些名字里带 "space" 或
+> 不带的，全都属于**屏幕空间**这一类 —— 名字只描述观感，不代表渲染路径。
+
+**世界空间（16）**
+`orbit_sphere`、`helix_trail`、`soft_trail`、`block_crack_light`、`red_eye_flash`、
+`tilted_halo`、`doom_corona`、`abyssal_rift_eye`、`holy_judgement_halo`、`astral_crown`、
+`blood_moon_backwheel`、`causal_chains`、`inverted_cross_mark`、`volumetric_flame`、
+`phantom_rift_shards`、`supreme_chaos_cosmos`
+
+**屏幕空间（25）**
+
+*通用效果（8）*
+`screen_space_shockwave`、`depth_occluded_halo`、`contact_edge_glow`、`outline_scan`、
+`volumetric_light_column`、`depth_refraction_heatwave`、`depth_refraction_pressure`、
+`black_cat_head_fog_field`
+
+*领域展开（8）*
 `cosmic_domain`、`lunar_domain`、`blueprint_domain`、`thunder_domain`、`mirror_domain`、
 `clockwork_domain`、`sand_domain`、`flora_domain`
+
+*领域组件（9）*
+`malevolent_shrine_domain`、`malevolent_shrine_slash`、`malevolent_shrine_target_glow`、
+`malevolent_shrine_fire`、`malevolent_shrine_fire_legacy`、`malevolent_shrine_black_domain`、
+`malevolent_shrine_black_mist`、`malevolent_shrine_void`、`malevolent_shrine_starfield`
+
+> **特效目录会持续扩充。** 以上清单反映的是**当前版本**：后续更新会继续新增特效，
+> 已有的特效也会继续打磨（配色、明暗、节奏、运动）并做性能优化。
+> 所以特效总数、以及单个特效的具体观感都可能在版本之间发生变化。
+> 如果你在其他地方介绍本模组，建议写「40+ 个特效」而不是写死数字。
 
 ---
 
